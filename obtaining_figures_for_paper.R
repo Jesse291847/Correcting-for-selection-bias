@@ -2,6 +2,7 @@ library(qgraph)
 library(ggplot2)
 library(tidyverse)
 library(IsingSampler)
+library(IsingFit)
 library(ggdag)
 
 # create collider plot
@@ -27,43 +28,50 @@ ggplot(data.frame(x = c(0, 1)), aes(x = x)) +
   theme_void()
 dev.off()
 
-### constructing plot for true network ###
-
-# reading empirical weights and thresholds from Cramer
-weights <- read.delim("Cramer_par/EmpiricalWeightParameters.txt")
-thresholds <- read.delim("Cramer_par/EmpiricalThresholdParameters.txt", header = FALSE)
-
-# because I change the parameters I don't want to show the symtpom names
-rownames(weights) <- colnames(weights) <- paste0(rep("S", 14), 1:14)
-
-# making changes to obtain enough variance
-weights[-1, 1] <- round(weights[-1, 1] * 0.5, digits = 4)
-weights[-c(1, 2), 2] <- round(weights[-c(1, 2), 2] * 0.5, digits = 4)
-
-
-weights[upper.tri(weights)] <- t(weights)[upper.tri(weights)]
-thresholds <- thresholds * 0.75
-
-# getting plot true network plot for paper
-pdf("true_network.pdf")
-qgraph(weights, theme = "colorblind", layout = "spring")
+#create histogram
+set.seed(4)
+severe <- sample(0:9, 1000, replace = TRUE, prob = c(0.1, 0.7, 1.2, 1.8, 2, 3.7, 4.5, 5.1, 4.4, 3.5))
+healthy <- sample(0:4, 1000, replace = TRUE, prob = c(5, 2.7, 2, 1.5, 0.8))
+pdf("hist_intro.pdf")
+hist(severe, col=rgb(1,0,0,0.5), xlim=c(0,9), ylim = c(0, 400),  breaks = 0:9, xlab = "Sum score", main = "")  
+hist(healthy, col=rgb(0,0,1,0.5), xlim=c(0,9), add = T, breaks = 0:5, right = FALSE)
+abline(v = 5, lty = "dashed", lwd = 2.5)
+axis(side=1,at=seq(0,9,1),labels=seq(0,9,1))
+legend('topright', c('Severe population', 'Healthy population'), 
+       fill = c(rgb(1,0,0,0.5),rgb(0,0,1,0.5)), xpd = TRUE, cex = 0.8, inset = c(-0.05,0))
 dev.off()
 
-# calculate densitiy and average edge strenght
-all_edges <- weights[upper.tri(weights)]
-non_zero <- all_edges[all_edges != 0]
+### constructing plot for true network ###
 
-average_strength <- mean(abs(non_zero))
-density <- length(non_zero) / length(all_edges)
+weights <- read.delim("Empirical_data/EmpiricalWeightParameters.txt")
+rownames(weights) <- colnames(weights)
+thresholds <- read.delim("Empirical_data/EmpiricalThresholdParameters.txt", header = FALSE)
+
+sim_data <- as.data.frame(IsingSampler(400000, as.matrix(weights), pull(thresholds), method = "CFTP"))
+colnames(sim_data) <- colnames(weights)
+
+sim_data$sleep <- ifelse(sim_data$iso == 1 | sim_data$hso == 1, 1, 0) #hypersomnia and insomnia
+sim_data$motor <- ifelse(sim_data$agi == 1 | sim_data$ret == 1, 1, 0) #psychomotor agitation and retardation
+sim_data$weight <- ifelse(sim_data$gai == 1 | sim_data$los == 1| 
+                            sim_data$dap == 1 | sim_data$iap == 1, 1, 0) #weight and appetite
+sim_data <- sim_data[,-c(3:10)]
+network <- IsingFit(sim_data)
 
 
-# Save to file:
-saveRDS(weights, "objects/true_network.RDS")
+weights <- network$weiadj
+thresholds <- network$thresholds
+weights[-1, 1] <- round(weights[-1, 1] * 0.4, digits = 4)
+weights[upper.tri(weights)] <- t(weights)[upper.tri(weights)]
 
-### simulate datasets for simulation study ###
-# # for multiple simulations not too large so easy to store in memory
-# population <- as.data.frame(IsingSampler(400000, as.matrix(weights), pull(thresholds), method = "CFTP"))
-# saveRDS(population, "population_simulation.RDS")
+
+rownames(weights) <- colnames(weights)
+thresholds <- thresholds * 0.7
+
+saveRDS(thresholds, "thresholds_sim.RDS")
+saveRDS(weights, "network_sim.RDS")
+
+sim_data <- IsingSampler(400000, weights, thresholds, method = "CFTP")
+readRDS(sim_data, "objects/small_population_simulation.RDS")
 
 # SE: One large dataset for all simulations:
 large_population <- as.data.frame(IsingSampler(10000000, as.matrix(weights), pull(thresholds), method = "CFTP"))
@@ -71,8 +79,15 @@ large_population <- as.data.frame(IsingSampler(10000000, as.matrix(weights), pul
 # Save the object:
 saveRDS(large_population, "objects/large_population_sim.RDS")
 
-# select only eligible cases
-severe_pop_large <- large_population[rowSums(large_population) >= 5, ]#  %>% slice_sample(n = 400000)
 
-#save to external file
-saveRDS(severe_pop_large, "objects/large_severe_pop_sim.RDS")
+
+network <- readRDS("network_sim.RDS")
+
+pdf("sim_network")
+qgraph(network, layout = "spring", theme = "colorblind")
+dev.off()
+
+#summary statistics
+sum(network[upper.tri(network)] == 0)
+mean(network[upper.tri(network)])
+length(network[upper.tri(network)])

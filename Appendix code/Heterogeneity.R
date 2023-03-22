@@ -2,7 +2,7 @@ library(qgraph)
 library(IsingSampler)
 library(IsingFit)
 source("comparison_functions.R")
-source("IsingFit_collider_correction.R")
+source("estimators.R")
 
 set.seed(3)
 
