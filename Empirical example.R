@@ -2,7 +2,7 @@ library(glmnet)
 library(qgraph)
 library(IsingFit)
 library(tidyverse)
-source("IsingFit_correction.R")
+source("estimators.R")
 NCS <- read.csv("Empirical_data/NCS.csv")
 labels <- c("depr", "inte", "weig", "sle", "motor", "fat", "repr", "con", 
             "suic", "anxi", "even", "ctrl", "edge", "gFat", "irri", "gCon", 
@@ -15,10 +15,15 @@ correction <- IsingFit_correction(severe, plot = FALSE, progressbar = FALSE, min
 
 AL <- averageLayout(regular, correction)
 
-pdf("Empirical example correction selection bias.pdf", width = 10, height = 5)
+pdf("figures/Empirical example correction selection bias.pdf", width = 10, height = 5)
 par(mfrow = c(1,2))
 qgraph(regular, theme = "colorblind", labels = labels[2:9], layout = AL, 
-       title = "Estimation with IsingFit", maximum = max(c(regular, correction)))
+       title = "Uncorrected network", maximum = max(c(regular, correction)))
 qgraph(correction, theme = "colorblind", labels = labels[2:9], layout = AL, 
-       title = "Estimation with correction", max(c(regular, correction)))
+       title = "Corrected network", max(c(regular, correction)))
 dev.off()
+
+
+
+
+

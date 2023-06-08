@@ -24,14 +24,14 @@ results <- parSim(
     library(parSim)
     
     source("comparison_functions.R")
-    source("IsingFit_correction.R")
+    source("estimators.R")
     
     #loading true network
     weights <- readRDS("objects/true_network.RDS")
    
     
     # Select data:
-    population <- readRDS("objects/large_population_sim.RDS") %>% slice_sample(n = sample_size)
+    population <- readRDS("objects/large_population_sim.RDS") %>% slice_sample(n = sample_size) #this is not aggregated data: FIX!!
     
     # network estimation
     

@@ -6,8 +6,8 @@ weights <- read.delim("Empirical_data/EmpiricalWeightParameters.txt")
 rownames(weights) <- colnames(weights)
 thresholds <- read.delim("Empirical_data/EmpiricalThresholdParameters.txt", header = FALSE)
 
-# because I change the parameters I don't want to show the symtpom names
-
+# because I change the parameters I don't want to show the symptom names
+set.seed(4) #forgot this when creating the actual network I now simulated from
 sim_data <- as.data.frame(IsingSampler(400000, as.matrix(weights), pull(thresholds), method = "CFTP"))
 isSymmetric(as.matrix(weights))
 colnames(sim_data) <- colnames(weights)
@@ -31,9 +31,13 @@ weights[upper.tri(weights)] <- t(weights)[upper.tri(weights)]
 rownames(weights) <- colnames(weights)
 thresholds <- thresholds * 0.7
 
-saveRDS(thresholds, "thresholds_sim.RDS")
-saveRDS(weights, "network_sim.RDS")
+saveRDS(thresholds, "objects/thresholds_sim.RDS")
+saveRDS(weights, "objects/network_sim.RDS")
 
 sim_data <- IsingSampler(400000, weights, thresholds, method = "CFTP")
-readRDS(sim_data, "objects/small_population_simulation.RDS")
+saveRDS(sim_data, "objects/small_population_simulation.RDS")
+
+#large population for 500,000
+sim_data <- IsingSampler(2000000, weights, thresholds, method = "CFTP")
+saveRDS(sim_data, "objects/large_population_simulation.RDS")
 

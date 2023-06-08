@@ -2,7 +2,7 @@ library(tidyverse)
 library(reshape2)
 library(ggpubr)
 
-results <- readRDS("results_100_runs_multi.RDS")
+results <- readRDS("objects/results_100_runs_multi.RDS")
 #check if errors occurred 
 if(sum(results$error) == 0){
   results <- results %>% select(-c(error, errorMessage))
@@ -14,19 +14,42 @@ results
 #reshaping results to plot
 results <- melt(results, id = c("rep", "id", "cutoff", "sample_size"))
 results$condition <- ifelse(grepl("regular_univariate", results$variable), "regular_univariate",
-                            ifelse(grepl("regular_elasso", results$variable), "regular_elasso" ,
+                            ifelse(grepl("regular_elasso", results$variable), "regular_elasso",
+                            ifelse(grepl("regular_multivariate", results$variable), "regular_multivariate",
                             ifelse(grepl("correction_univariate", results$variable), "correction_univariate",
                             ifelse(grepl("correction_elasso", results$variable), "correction_elasso",
-                            ifelse(grepl("correction_multivariate", results$variable),"correction_multivariate", "Should not exist")))))
-                            
-results$outcome <- ifelse(grepl("Sensitivity", results$variable), "Sensitivity",
-                          ifelse(grepl("Neg", results$variable), "Spurious negative edges",
+                            ifelse(grepl("correction_multivariate", results$variable),"correction_multivariate", "Should not exist"))))))
+                    
+
+results %>% filter(condition == "Should not exist")
+        
+results$outcome <- ifelse(grepl("sensitivity", results$variable), "Sensitivity",
+                          ifelse(grepl("neg", results$variable), "Spurious negative edges",
                                  ifelse(grepl("error", results$variable), "Estimation Error",
-                                        ifelse(grepl("Specificity", results$variable), "Specificity",
-                                               ifelse(grepl("Cor", results$variable), "Correlation", "Unknown")))))
-unique(results$outcome)
+                                        ifelse(grepl("specificity", results$variable), "specificity",
+                                             ifelse(grepl("cor", results$variable), "Correlation", "Unknown")))))
+table(results$outcome)
+
+
+#getting plot with estimation error
+p1 <- results %>% filter(cutoff == 5 & outcome == "Estimation Error" & !grepl("elasso", condition)) %>%
+  ggplot(mapping = aes(x = factor(sample_size), y = value, fill = condition)) +
+  geom_boxplot() +
+  theme_bw() +
+  scale_fill_discrete(name = "Condition", labels = c("Corrected multivariate estimation", 
+  "Corrected univariate estimation", "Regular univariate estimation")) +
+  labs(x = "Sample size", y = "Estimation Error") +
+  ylim(c(0,max(results$value))) 
+
+pdf("figures/main_results.pdf")
+p1
+dev.off()
+
+
+readRDS("objects/large_population_sim.RDS")
+
 #getting plot without estimation error
-p1 <- results %>% filter(cutoff == 5 & outcome != "Estimation Error") %>%
+p2 <- results %>% filter(cutoff == 5 & outcome != "Estimation Error") %>%
   ggplot(mapping = aes(x = factor(sample_size), y = value, fill = condition)) +
   geom_boxplot() +
   facet_wrap(~outcome) +
@@ -35,24 +58,10 @@ p1 <- results %>% filter(cutoff == 5 & outcome != "Estimation Error") %>%
   theme(legend.position = "bottom") +
   labs(x = "Sample size", y = "")
 
-#getting plot with estimation error
-p2 <- results %>% filter(cutoff == 5 & outcome == "Estimation Error" & !grepl("elasso", condition)) %>%
-  ggplot(mapping = aes(x = factor(sample_size), y = value, fill = condition)) +
-  geom_boxplot() +
-  theme_bw() +
-  scale_fill_discrete(name = "Condition", labels = c("Corrected multivariate estimation", 
-  "Corrected univariate estimation", "Regular univariate estimation")) +
-  labs(x = "Sample size", y = "Estimation Error") +
-  ylim(c(0,max(results$value))) 
-p2  
 
-
-grepl("elasso")
-
-#saving plots to pdf
-pdf("plot_results_com.pdf")
-ggarrange(p2, p1, nrow = 2, ncol = 1, heights = c(0.5, 1))
+#saving second plot to pdf
+pdf("figures/plot_results_elasso.pdf")
+p2
 dev.off()
-
 
 

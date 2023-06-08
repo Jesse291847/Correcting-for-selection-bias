@@ -4,35 +4,15 @@ library(tidyverse)
 library(IsingSampler)
 library(IsingFit)
 library(ggdag)
+library(glmnet)
+source("estimators.R")
 
-# create collider plot
-collider_plot <- collider_triangle(x = "Motivation", y = "Intelligence", "Honors") %>%
-  ggdag_dseparated(controlling_for = "m", text = FALSE, use_labels = "label") +
-  theme_dag()
-
-pdf("Collider_triangle.RDS")
-collider_plot
-dev.off()
-
-# create distribution plot
-func_shaded <- function(x) {
-  y <- dnorm(x, mean = 0.5, sd = 0.15)
-  y[x < 0.7] <- NA
-  return(y)
-}
-
-pdf("Illustration_selection.pdf")
-ggplot(data.frame(x = c(0, 1)), aes(x = x)) +
-  stat_function(fun = dnorm, args = list(0.5, 0.15)) +
-  stat_function(fun = func_shaded, geom = "area", fill = "red", alpha = 0.5) +
-  theme_void()
-dev.off()
 
 #create histogram
 set.seed(4)
 severe <- sample(0:9, 1000, replace = TRUE, prob = c(0.1, 0.7, 1.2, 1.8, 2, 3.7, 4.5, 5.1, 4.4, 3.5))
 healthy <- sample(0:4, 1000, replace = TRUE, prob = c(5, 2.7, 2, 1.5, 0.8))
-pdf("hist_intro.pdf")
+pdf("figures/hist_intro.pdf")
 hist(severe, col=rgb(1,0,0,0.5), xlim=c(0,9), ylim = c(0, 400),  breaks = 0:9, xlab = "Sum score", main = "")  
 hist(healthy, col=rgb(0,0,1,0.5), xlim=c(0,9), add = T, breaks = 0:5, right = FALSE)
 abline(v = 5, lty = "dashed", lwd = 2.5)
@@ -91,3 +71,50 @@ dev.off()
 sum(network[upper.tri(network)] == 0)
 mean(network[upper.tri(network)])
 length(network[upper.tri(network)])
+
+
+### Empirical example ###
+NCS <- read.csv("Empirical_data/NCS.csv")
+labels <- c("depr", "inte", "weig", "sle", "motor", "fat", "repr", "con", 
+            "suic", "anxi", "even", "ctrl", "edge", "gFat", "irri", "gCon", 
+            "musc", "gSle")
+
+MDD <- NCS %>% filter(V1 == 1) %>% select(paste0("V", 2:9)) 
+severe <- MDD[rowSums(MDD) >= 4,]
+regular <- IsingFit(severe, plot = FALSE, progressbar = FALSE)$weiadj
+correction <- IsingFit_correction(severe, plot = FALSE, progressbar = FALSE, min_sumscore = 4)$weiadj
+
+AL <- averageLayout(regular, correction)
+
+pdf("figures/Empirical example correction selection bias.pdf", width = 10, height = 5)
+par(mfrow = c(1,2))
+qgraph(regular, theme = "colorblind", labels = labels[2:9], layout = AL, 
+       title = "Estimation with IsingFit", maximum = max(c(regular, correction)))
+qgraph(correction, theme = "colorblind", labels = labels[2:9], layout = AL, 
+       title = "Estimation with correction", max(c(regular, correction)))
+dev.off()
+
+# # create collider plot
+# collider_plot <- collider_triangle(x = "Motivation", y = "Intelligence", "Honors") %>%
+#   ggdag_dseparated(controlling_for = "m", text = FALSE, use_labels = "label") +
+#   theme_dag()
+# 
+# pdf("Collider_triangle.RDS")
+# collider_plot
+# dev.off()
+# 
+# # create distribution plot
+# func_shaded <- function(x) {
+#   y <- dnorm(x, mean = 0.5, sd = 0.15)
+#   y[x < 0.7] <- NA
+#   return(y)
+# }
+# 
+# pdf("Illustration_selection.pdf")
+# ggplot(data.frame(x = c(0, 1)), aes(x = x)) +
+#   stat_function(fun = dnorm, args = list(0.5, 0.15)) +
+#   stat_function(fun = func_shaded, geom = "area", fill = "red", alpha = 0.5) +
+#   theme_void()
+# dev.off()
+
+

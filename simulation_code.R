@@ -17,7 +17,7 @@ results <- parSim(
   
     # Conditions
     sample_size = c(500, 1000, 2500, 5000),
-    cutoff = c(0, 5), # only for Appendix
+    cutoff = c(0, 5, 8), # only for Appendix
 
 
     # Setup:
@@ -70,43 +70,46 @@ results <- parSim(
             estimation_error_correction_multivariate = calculate_estimation_error(correction_multivariate, true_network),
             estimation_error_correction_elasso = calculate_estimation_error(correction_elasso, true_network),
             sensitivity_correction_elasso = calculate_sensitivity(correction_elasso, true_network), 
-            specificity_correction_elasso = calculate_sensitivity(correction_elasso, true_network)
+            specificity_correction_elasso = calculate_specificity(correction_elasso, true_network)
             
         )
     }
 )
 
-results
-warnings()
 #save simulation results to external file
 saveRDS(results, "results_100_runs_multi.RDS")
 
-#loading a large population all with at least a sum score of 5
-population <- readRDS("objects/large_population_sim.RDS") %>% slice_sample(n = 400,000)
-population <- readRDS("objects/large_population_sim.RDS")
-true_network <- readRDS("objects/true_network.RDS")
+#loading a large population all with at least a sum score of 5 (still 14 symptoms FIX!)
+population <- readRDS("objects/large_population_simulation.RDS")
+true_network <- readRDS("objects/network_sim.RDS")
+severe <- population[rowSums(population) >= 5,] %>% as.data.frame() %>% slice_sample(n = 500000)
 
-#estimating the networks depends on the esimation method
-regular <- IsingFit(population, plot = FALSE, progressbar = FALSE)$weiadj
-correction <- IsingFit_correction(large_severe_pop, sumscore = 5, plot = FALSE, progressbar = FALSE)$weiadj
+#estimating the networks depends on the estimation method
+regular <- univariate(severe, 0)
+regular_elasso <- IsingFit(severe, plot = FALSE, progressbar = FALSE)
+correction_univariate <- univariate(severe, 5)
+correction_multivariate <- multivariate(severe, 5)
+correction_elasso <- IsingFit_correction(severe, min_sumscore = 5, plot = FALSE, progressbar = FALSE)
+
 
 results_single_run <- data.frame(
-  Sensitivity_regular = calculate_sensitivity(regular, true_network),
-  Specificity_regular = calculate_specificity(regular, true_network),
-  Correlation_regular = calculate_correlation(regular, true_network),
-  SpurNegEdges_regular = calculate_spur_neg_edges(regular, true_network),
-  Estimation_error_regular = calculate_estimation_error(regular, true_network),
-  Sensitivity_correction = calculate_sensitivity(correction, true_network),
-  Specificity_correction = calculate_specificity(correction, true_network),
-  Correlation_correction = calculate_correlation(correction, true_network),
-  SpurNegEdges_correction = calculate_spur_neg_edges(correction, true_network),
-  Estimation_error_correction = calculate_estimation_error(correction, true_network)
+  estimation_error_regular_univariate = calculate_estimation_error(regular, true_network),
+  #estimation_error_regular_multivariate = calculate_estimation_error(regular_multivariate, true_network),
+  estimation_error_regular_elasso = calculate_estimation_error(regular_elasso$weiadj, true_network),
+  sensitivity_regular_elasso = calculate_sensitivity(regular_elasso$weiadj, true_network), 
+  specificity_regular_elasso = calculate_specificity(regular_elasso$weiadj, true_network),
+  
+  estimation_error_correction_univariate = calculate_estimation_error(correction_univariate, true_network),
+  estimation_error_correction_multivariate = calculate_estimation_error(correction_multivariate, true_network),
+  estimation_error_correction_elasso = calculate_estimation_error(correction_elasso$weiadj, true_network),
+  sensitivity_correction_elasso = calculate_sensitivity(correction_elasso$weiadj, true_network), 
+  specificity_correction_elasso = calculate_sensitivity(correction_elasso$weiadj, true_network)
 )
 
-#save to external file
-saveRDS(results_single_run, "results_large_pop.RDS")
-population
 
-sum(results$error)
+#save to external file
+saveRDS(results_single_run, "objects/results_large_pop.RDS")
+
+
 
 
