@@ -1,94 +1,5 @@
-library(glmnet)
-library(qgraph)
-
-# univariate unregularized estimator
-univariate <- function(data, min_sumscore){
-  # Check input:
-  data <- as.matrix(data)
-  stopifnot(all(unlist(data) %in% c(0,1)))
-  
-  # Number of nodes:
-  nNode <- ncol(data)
-  
-  # Output graph:
-  outgraph <- matrix(0,nNode,nNode)
-  
-  # nodewise regressions:
-  for (i in seq_len(nNode)){
-    # Cut out the cases for which s = k-1:
-    subData <- data[rowSums(data[,-i,drop=FALSE]) != (min_sumscore - 1), ]
-    glmres <- glm(subData[,i] ~ subData[,-i,drop=FALSE], family = binomial('logit'))
-    outgraph[i,-i] <- coef(glmres)[-1]
-  }
-  
-  # Make symmetrical:
-  outgraph <- 0.5 * (outgraph + t(outgraph))
-  
-  # Return:
-  return(outgraph)
-}
-
-likelihood <- function(x, nNode, data, min_sumscore){
-  library(dplyr)
-  library(IsingSampler)
-  
-  thresholds <- x[1:nNode]
-  graph <- matrix(0, nNode, nNode)
-  graph[lower.tri(graph,diag=FALSE)] <- x[-(1:nNode)]
-  graph[upper.tri(graph,diag=FALSE)] <- t(graph)[upper.tri(graph,diag=FALSE)]
-  
-  # Likelihood table:
-  likTable <- IsingLikelihood(graph, thresholds, 1, responses = c(0,1), potential = TRUE)
-  
-  # Cut out sumscore < cutoff:
-  likTable <- likTable[rowSums(as.matrix(likTable[,-1])) >= min_sumscore,]
-  
-  # Var names:
-  varNames <- names(likTable)[-1]
-  
-  # Compute Z:
-  Z <- sum(likTable$Potential)
-  
-  # Compute probabilities:
-  likTable$probability <- likTable$Potential / Z
-  
-  # Append to data:
-  data <- as.data.frame(data)
-  names(data) <- varNames
-  data <- data %>% left_join(likTable, by = varNames)
-  
-  # Return -2 * log likelihood:
-  -2 * sum(log(data$probability))
-}
-
-# This estimator adjusts Z to only sum over responses where sumscore >= threshold!
-multivariate <- function(data, min_sumscore){
-  # Check input:
-  data <- as.matrix(data)
-  stopifnot(all(unlist(data) %in% c(0,1)))
-  
-  # Number of nodes:
-  nNode <- ncol(data)
-  
-  # Start values:
-  start <- rep(0, nNode + nNode * (nNode-1) / 2)
-  
-  # optimize:
-  res <- nlminb(start, likelihood, data = data, nNode = nNode, min_sumscore=min_sumscore)
-  
-  # Obtain graph:
-  graph <- matrix(0, nNode, nNode)
-  graph[lower.tri(graph,diag=FALSE)] <- res$par[-(1:nNode)]
-  graph[upper.tri(graph,diag=FALSE)] <- t(graph)[upper.tri(graph,diag=FALSE)]
-  
-  # Return:
-  return(graph)
-}
-
-
-# elasso esimator
-IsingFit_correction <-
-  function(x, family = "binomial", AND = TRUE, gamma = 0.25, plot = TRUE, progressbar = TRUE, min_sumscore = 0, lowerbound.lambda = NA, ...) {
+IsingFit <-
+  function(x, family = "binomial", AND = TRUE, gamma = 0.25, plot = TRUE, progressbar = TRUE, min_sum = -Inf, lowerbound.lambda = NA, ...) {
     t0 <- Sys.time()
     xx <- x
     if (family != "binomial") {
@@ -127,6 +38,7 @@ IsingFit_correction <-
     ##
 
     x <- as.matrix(x)
+    if (!all( x == 1 | x== 0)) {warning("IsingFit only supports data that is encoded as (0,1)")}
     allthemeans <- colMeans(x)
     x <- x[, NodesToAnalyze, drop = FALSE]
     nvar <- ncol(x)
@@ -135,7 +47,7 @@ IsingFit_correction <-
     nlambdas <- rep(0, nvar)
     N <- vector()
     for (i in 1:nvar) {
-      subData <- x[rowSums(replace(x[, -i, drop = FALSE], x[, -i, drop = FALSE] < 0, 0)) != (min_sumscore - 1), ]
+      subData <- x[rowSums(replace(x[, -i, drop = FALSE], x[, -i, drop = FALSE] < 0, 0)) != (min_sum - 1), ]
       a <- glmnet(subData[, -i], subData[, i], family = "binomial")
       intercepts[[i]] <- a$a0
       betas[[i]] <- a$beta
@@ -158,7 +70,7 @@ IsingFit_correction <-
 
     for (i in 1:nvar) { # i <- 1
       
-      subData <- x[rowSums(replace(x[, -i, drop = FALSE], x[, -i, drop = FALSE] < 0, 0)) != (min_sumscore - 1), ]
+      subData <- x[rowSums(replace(x[, -i, drop = FALSE], x[, -i, drop = FALSE] < 0, 0)) != (min_sum - 1), ]
       sample_size <- N[i]
       betas.ii <- as.matrix(betas[[i]])
       int.ii <- intercepts[[i]]
@@ -244,9 +156,9 @@ IsingFit_correction <-
     return(Res)
   }
 
-plot.IsingFit_correction <- function(object,...) qgraph(object$q,DoNotPlot = FALSE, ...)
+plot.IsingFit <- function(object,...) qgraph(object$q,DoNotPlot = FALSE, ...)
 
-print.IsingFit_correction <- function(x)
+print.IsingFit <- function(x)
 {
   cat("Estimated network:\n")
   
@@ -257,7 +169,7 @@ print.IsingFit_correction <- function(x)
   print(x$thresholds)  
 }
 
-summary.IsingFit_correction <- function(object)
+summary.IsingFit <- function(object)
 {
   cat("\tNetwork Density:\t\t", round(mean(object$weiadj[upper.tri(object$weiadj)]!=0),2),"\n",
       "Gamma:\t\t\t",round(object$gamma,2),"\n",
@@ -265,6 +177,4 @@ summary.IsingFit_correction <- function(object)
       "Analysis took:\t\t",format(object$time,format="%s"),"\n"
   )
 }
-
-
 
