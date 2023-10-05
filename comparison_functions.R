@@ -71,4 +71,11 @@ calculate_estimation_error <- function(est_network, true_network){
   
 }
 
-
+calculate_metrics <- function(est_network, true_network) {
+  estimation_error <- calculate_estimation_error(est_network, true_network)
+  sensitivity <- calculate_sensitivity(est_network, true_network)
+  specificity <- calculate_specificity(est_network, true_network)
+  spur_neg_egdes <- calculate_spur_neg_edges(est_network, true_network)
+  
+  return(list(estimation_error = estimation_error, sensitivity = sensitivity, specificity = specificity, spur_neg_edges = spur_neg_egdes))
+}
